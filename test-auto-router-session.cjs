@@ -15,8 +15,10 @@ const {
   cursorSubscriptionBadge,
   fixedGrokSubscriptionDecision,
   forbiddenSubagentControlCall,
+  normalizeDynamicToolArgs,
   normalizeGenericToolArgs,
   parseModelCommand,
+  repeatedToolFailure,
   requestsUserInput,
   turnCompletionDecision,
   unresolvedCommandBindingFailure,
@@ -34,6 +36,27 @@ const {
 assert.strictEqual(requestsUserInput("I found some strong current shoe deals.", null), false);
 assert.strictEqual(requestsUserInput("What shoe size should I search for?", null), true);
 assert.strictEqual(requestsUserInput("Please sign in, then hand the box back.", null), true);
+assert.deepStrictEqual(
+  normalizeDynamicToolArgs("GetDynamicTools", { server: "cursor", toolName: "GetSecretStatus" }),
+  { pattern: "GetSecretStatus" }
+);
+assert.deepStrictEqual(
+  normalizeDynamicToolArgs("GetDynamicTools", { server: "cursor", toolName: "TodoWrite.invalid.noop" }),
+  { pattern: "TodoWrite\\.invalid\\.noop" }
+);
+
+{
+  const messages = [{ role: "user", content: "Find the available connector and finish the task." }];
+  for (let n = 0; n < 4; n++) {
+    messages.push(
+      { role: "assistant", content: [{ type: "tool-call", toolCallId: `missing_${n}`, toolName: "GetDynamicTools", args: { namespace: "cursor", toolName: `Missing.invalid${n}` } }] },
+      { role: "tool", content: [{ type: "tool-result", toolCallId: `missing_${n}`, toolName: "GetDynamicTools", result: { error: { error: `Tool \"Missing.invalid${n}\" not found in namespace \"cursor\".` } } }] },
+      { role: "assistant", content: [{ type: "tool-call", toolCallId: `status_${n}`, toolName: "communicate_update", args: { currentStep: "Still looking" } }] },
+      { role: "tool", content: [{ type: "tool-result", toolCallId: `status_${n}`, toolName: "communicate_update", result: { success: true } }] },
+    );
+  }
+  assert.strictEqual(repeatedToolFailure(messages), "GetDynamicTools");
+}
 
 {
   const id = "fake_needs_input";
@@ -1473,7 +1496,7 @@ server.listen(0, "127.0.0.1", async () => {
       { name: "browser_snapshot", parameters: { type: "object", properties: {} } },
       { name: "Read", parameters: { type: "object", properties: { path: { type: "string" } } } },
     ];
-    for (let n = 1; n <= 50; n++) {
+    for (let n = 1; n <= 48; n++) {
       const round = [];
       const offered = n === 1 ? browserAndReadTools : [browserAndReadTools[1]];
       for await (const part of latchedBrowserExecutor.stream({}, `latched-browser-${n}`, offered).fullStream) round.push(part);
@@ -1488,6 +1511,11 @@ server.listen(0, "127.0.0.1", async () => {
         { role: "tool", content: [{ type: "tool-result", toolCallId: round[0].toolCallId, toolName: "Read", result: { success: { content: `round ${n}` } } }] },
       ]);
     }
+    const beforeLatchedFuse = seen.length;
+    const latchedFuse = [];
+    for await (const part of latchedBrowserExecutor.stream({}, "latched-browser-fuse", browserAndReadTools).fullStream) latchedFuse.push(part);
+    assert.strictEqual(seen.length, beforeLatchedFuse, "a browser-capable turn still has a finite non-GUI model-round budget");
+    assert.strictEqual(latchedFuse[0].toolName, "SendToUser");
 
     const directBrowserRecoveryExecutor = directBrowserSession.getExecutor([{
       role: "user",
@@ -1777,12 +1805,19 @@ server.listen(0, "127.0.0.1", async () => {
       role: "user",
       content: "plain progress suppression adapter: check the live state",
     }]);
+    const noisyStructuredTools = [
+      ...structuredTools,
+      { name: "communicate_update", parameters: { type: "object", properties: { currentStep: { type: "string" } } } },
+      { name: "update_todos", parameters: { type: "object", properties: {} } },
+      { name: "GetDynamicTools", parameters: { type: "object", properties: { pattern: { type: "string" }, toolName: { type: "string" } } } },
+    ];
     const plainProgressParts = [];
-    for await (const part of plainProgressExecutor.stream({}, "plain-progress", structuredTools).fullStream) {
+    for await (const part of plainProgressExecutor.stream({}, "plain-progress", noisyStructuredTools).fullStream) {
       plainProgressParts.push(part);
     }
     assert.strictEqual(plainProgressParts[0].toolName, "Shell");
     assert.ok(!plainProgressParts.some((part) => part.type === "text-delta" || part.toolName === "SendToUser"));
+    assert.deepStrictEqual(seen.at(-1).tools.map((tool) => tool.function.name), ["Shell"]);
 
     structuredExecutor.appendMessages([
       { role: "assistant", content: [{ type: "tool-call", toolCallId: structuredAction[0].toolCallId, toolName: "Shell", args: structuredAction[0].args }] },

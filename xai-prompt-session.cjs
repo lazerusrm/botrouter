@@ -60,7 +60,9 @@ function normalizeModelSelection(value) {
 }
 
 function parseModelCommand(text) {
-  const value = asString(text).trim().toLowerCase();
+  const value = asString(text).trim().toLowerCase()
+    .replace(/\bcomposer2\.5\b/g, "composer-2.5")
+    .replace(/\bcomposer-2\.5-(standard|fast)\b/g, "composer-2.5 $1");
   if (value === "/codex") return { action: "set", selection: "auto" };
   if (value === "/grok") return { action: "set", selection: "grok" };
   if (["/cursor", "/cursorsub", "/composer", "/composer-2.5"].includes(value)) return { action: "set", selection: "cursorsub-composer-2.5-fast" };
@@ -690,9 +692,14 @@ function normalizeDynamicToolArgs(name, raw) {
     // pattern is the unambiguous search intent; keep it global so a filler
     // namespace cannot accidentally hide the requested connector.
     if (pattern) return { pattern };
+    // GetDynamicTools is discovery, not invocation. Repair guessed exact names
+    // into literal searches so an unknown or deliberate *.invalid no-op becomes
+    // a quiet empty result instead of a user-visible "tool not found" error.
+    if (toolName) {
+      return { pattern: toolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") };
+    }
     return {
       ...(namespace ? { namespace } : {}),
-      ...(toolName ? { toolName } : {}),
     };
   }
   let invocationArgs = args.arguments;
@@ -2615,6 +2622,9 @@ function addCodexHarnessInstructions(messages, openaiTools, route) {
       ? "GetDynamicTools discovers exact schemas: start with only {pattern:\"relevant regex\"}, then use the returned namespace and toolName. CallDynamicTool invokes it with {namespace, toolName, arguments}; preserve mcpDetails only from discovery or an approval retry."
       : "",
     hasDynamic
+      ? "Never invent tool names or make deliberate failing/no-op tool calls to obtain another model round. An empty discovery result means choose another offered method or report the exact proven blocker."
+      : "",
+    hasDynamic
       ? "For a public fact, business, person, address, place, current event, or general internet lookup, discover a native web-search, maps, or geocoding tool first. Use the browser only when discovery returns no suitable search capability or the task requires interaction with a specific webpage. A browser is a fallback, not a substitute for search."
       : "",
     hasSend
@@ -3573,11 +3583,16 @@ function repeatedToolFailure(messages) {
     const output = asString(message.content);
     const call = calls.get(asString(message.tool_call_id));
     if (!call || !failedToolOutput(output)) {
-      failures.length = 0;
+      // Status, todo, and discovery calls do not prove recovery from a real
+      // failure. Ignore them so alternating error/status loops cannot evade the
+      // existing bounded failure fuse.
+      if (!call || !isNonWorkTool(call.name)) failures.length = 0;
       continue;
     }
     const exitMatch = /(?:^|\n)\s*Exit code:\s*([1-9]\d*)\b/i.exec(output);
-    const failureKind = /\binvalid arguments?\b/i.test(output)
+    const failureKind = compactToolName(call.name) === "getdynamictools" && /\btool\s+.+\s+not found\b/i.test(output)
+      ? "tool-not-found"
+      : /\binvalid arguments?\b/i.test(output)
       ? "invalid-arguments"
       : exitMatch
         ? `exit-${exitMatch[1]}:${output.replace(/\s+/g, " ").trim().slice(0, 400)}`
@@ -3854,7 +3869,10 @@ async function runStream({ model, messages, tools, invocationId, auth, route, au
       return control && control.turnState === "progress" || isProgressSend(content);
     });
     const plainProgressOnly = rawCalls.length === 0 && isProgressSend(text);
-    const workTools = (openaiTools || []).filter((tool) => !isSendMessageTool(tool && tool.function && tool.function.name));
+    // A forced retry must offer actual work, not status/todo/discovery tools.
+    // Leaving those available encouraged weak models to manufacture no-op calls
+    // forever instead of performing the next step.
+    const workTools = (openaiTools || []).filter((tool) => !isNonWorkTool(tool && tool.function && tool.function.name));
     if (
       (progressOnly || plainProgressOnly) && !openingGuiProgress && !quietWorkRetried && workTools.length > 0 &&
       hiddenTurn !== true && route && route.sessionKind !== "subagent"
@@ -4141,6 +4159,7 @@ function createExecutor(session) {
     messages: [],
     autoDecision: null,
     modelRounds: 0,
+    nonGuiModelRounds: 0,
     approvalRetryIssued: false,
     approvalHandoffsSeen: new Set(),
     approvalScanStart: 0,
@@ -4185,6 +4204,7 @@ function createExecutor(session) {
         state.hiddenTurn = currentUser.hidden;
         state.autoDecision = null;
         state.modelRounds = 0;
+        state.nonGuiModelRounds = 0;
         state.approvalRetryIssued = false;
         state.sendCompletionControls.clear();
         state.currentTurnToolCallIds.clear();
@@ -4231,6 +4251,7 @@ function createExecutor(session) {
       state.messages = [];
       state.autoDecision = null;
       state.modelRounds = 0;
+      state.nonGuiModelRounds = 0;
       state.approvalRetryIssued = false;
       state.approvalHandoffsSeen.clear();
       state.approvalScanStart = 0;
@@ -4451,7 +4472,15 @@ function createExecutor(session) {
           );
           computerFailure = "";
         }
-        const roundFailure = modelRoundFailure(state.modelRounds, isSubagent, computerUse);
+        // Browser capability is present on every direct main turn. It must not
+        // make an unrelated Shell/discovery/status loop unbounded. Advancing
+        // GUI calls retain the GUI loop policy; 49 consecutive non-GUI rounds
+        // use the normal hard fuse.
+        const roundFailure = modelRoundFailure(
+          computerUse ? state.nonGuiModelRounds + 1 : state.modelRounds,
+          isSubagent,
+          false
+        );
         if (repeatedFailure || computerFailure || roundFailure) {
           const detail = repeatedFailure
             ? `${repeatedFailure} failed ${REPEATED_TOOL_FAILURE_LIMIT} times`
@@ -4543,6 +4572,11 @@ function createExecutor(session) {
         state.openingObservationInjected = state.openingObservationInjected || result.injectedOpeningObservation === true;
         if (computerUse) {
           state.computerLoop = nextComputerLoopState(state.computerLoop, result.emittedToolCalls);
+          const usedGui = (result.emittedToolCalls || []).some((call) => {
+            const name = compactToolName(call && call.name);
+            return name === "computer" || name === "computeruse" || name.startsWith("browser");
+          });
+          state.nonGuiModelRounds = usedGui ? 0 : state.nonGuiModelRounds + 1;
         }
         return result;
       })();
