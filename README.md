@@ -106,6 +106,26 @@ cd ~/botrouter
 ./scripts/bootstrap.sh
 ```
 
+### What survives an update?
+
+There are two kinds of updates:
+
+| Update | What happens |
+|---|---|
+| Grok Bot refreshes its host software inside the same computer | BotRouter's watchdog restores the routing modules and host hooks automatically. Your local logins and browser profile remain. |
+| Grok Bot replaces the entire computer | The current computer has no persistent disk mount, so no local file is guaranteed to survive. The GitHub repository remains available and the bootstrap command rebuilds the non-secret setup. |
+
+After a full replacement, expect to sign in to Codex, Grok Build, Cursor, and
+websites again. BotRouter deliberately does not upload those credentials or
+browser cookies somewhere else. Per-bot model overrides stored on the old
+computer also need to be selected again with `/model`.
+
+The practical recovery anchor is this GitHub repository plus the original Grok
+Bot conversation and memory. Ask the bot to run the recovery prompt above; the
+bootstrap now reapplies the host routing, Computer/browser fixes, provider
+adapters, and any user-level desktop fix it can perform without administrator
+access.
+
 ## Common problems
 
 | What you see | What to do |

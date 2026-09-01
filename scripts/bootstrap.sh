@@ -16,9 +16,13 @@ fi
 
 if [[ -d "$DEST/.git" ]]; then
   echo "+ updating $DEST"
+  if [[ -n "$(git -C "$DEST" status --porcelain)" ]]; then
+    echo "ERROR: $DEST has local changes; ask the bot to review them before recovery." >&2
+    exit 1
+  fi
   git -C "$DEST" fetch --prune origin
   git -C "$DEST" checkout main
-  git -C "$DEST" reset --hard origin/main
+  git -C "$DEST" merge --ff-only origin/main
 elif [[ -f "$DEST/adapters.sh" ]]; then
   echo "+ using existing $DEST"
 else
@@ -28,4 +32,5 @@ else
 fi
 
 chmod +x "$DEST/adapters" "$DEST/adapters.sh" "$DEST/scripts/"*.sh 2>/dev/null || true
+"$DEST/scripts/disable-automation-dock.sh" --yes || echo "! desktop dock fix needs manual attention" >&2
 exec "$DEST/adapters.sh" recover

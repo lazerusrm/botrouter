@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 - 2026-09-01
+
+- Made full-computer recovery reapply the desktop click fix without requiring administrator access and documented the persistent-state boundary.
+
 ## 0.1.3 - 2026-09-01
 
 - Added a reversible box fix that auto-hides the Plank dock intercepting the bottom 137 pixels of Computer clicks without fighting the desktop supervisor.

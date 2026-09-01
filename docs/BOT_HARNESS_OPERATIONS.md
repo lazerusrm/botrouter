@@ -65,6 +65,14 @@ Credential lanes remain independent:
 
 ## Deployment and verification
 
+An in-place host bundle refresh is self-healing: the home-directory watchdog
+reinstalls and validates the routed runtime beside the refreshed host. A full
+computer/container replacement is different. This box has no persistent Docker
+mounts, so no local repository, model override, provider credential, or browser
+profile is guaranteed to survive. Recovery therefore starts from the public
+GitHub bootstrap and requires the account owner to repeat any provider or
+website login that the platform did not restore.
+
 The stock automation desktop may launch a 137-pixel Plank dock over the bottom
 of its 1280×800 screen. That window intercepts coordinate clicks even when
 Chrome is visible behind it. Disable it once per box image:
