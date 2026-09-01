@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 - 2026-09-01
+
+- Made host recovery install the prompt, Computer, and Auto-review modules as one validated bundle so the watchdog cannot restore stale routing code after restart.
+
 ## 0.1.0 - 2026-09-01
 
 - Initial BotRouter release.
