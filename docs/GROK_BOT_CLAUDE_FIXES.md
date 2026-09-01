@@ -1,4 +1,6 @@
-# Grok Bot → Claude: What Was Broken and How It Was Fixed
+# Grok Bot → Claude: Historical Fixes
+
+> Historical provider-specific notes. This is not the current box configuration. Use [BOT_HARNESS_OPERATIONS.md](BOT_HARNESS_OPERATIONS.md) for the live routed harness and its independent Codex, Grok Bot, Grok Build, and Cursor subscription lanes.
 
 **Date:** 2026-08-12
 **Outcome:** The Grok Bot runs on Claude (`claude-opus-5`) via Claude Pro OAuth instead of the trial-limited Grok/Cursor path.

@@ -45,6 +45,9 @@ if [[ "$(readlink -f "$0" 2>/dev/null || echo "$0")" != "$(readlink -f "$SAND_HO
   chmod +x "$SAND_HOST/scripts/ensure-xai-inference.sh" 2>/dev/null || true
 fi
 
+if [[ -f "$ROOT/inject-host.py" ]]; then
+  python3 "$ROOT/inject-host.py" "$HOST_MAIN" "$BACKUP"
+else
 python3 - "$HOST_MAIN" "$BACKUP" <<'PY'
 import pathlib, shutil, sys
 
@@ -123,9 +126,10 @@ if not backup.exists():
 host_main.write_text(text, encoding="utf-8", errors="surrogateescape")
 print("injected createXaiPromptSession hook")
 PY
+fi
 
-if grep -q createXaiPromptSession "$HOST_MAIN"; then
-  log "hook OK ($(grep -c createXaiPromptSession "$HOST_MAIN") refs)"
+if grep -Eq 'createRoutedPromptSession|createXaiPromptSession' "$HOST_MAIN"; then
+  log "hook OK ($(grep -Ec 'createRoutedPromptSession|createXaiPromptSession' "$HOST_MAIN") routed refs)"
 else
   die "hook injection failed"
 fi

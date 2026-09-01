@@ -273,7 +273,7 @@ PY
     echo "session module: MISSING ($SAND_HOST/xai-prompt-session.cjs)"
     echo "  sand will ignore xai-inference.env until: adapters patch-host"
   fi
-  if [[ -f "$SAND_HOST/host-main.cjs" ]] && grep -q createXaiPromptSession "$SAND_HOST/host-main.cjs"; then
+  if [[ -f "$SAND_HOST/host-main.cjs" ]] && grep -Eq 'createRoutedPromptSession|createXaiPromptSession' "$SAND_HOST/host-main.cjs"; then
     echo "createSession hook: OK"
   else
     echo "createSession hook: MISSING — stock Cursor path is still active"

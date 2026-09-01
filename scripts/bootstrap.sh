@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # One-shot after a VM / Sand wipe.
-#   curl -fsSL https://raw.githubusercontent.com/BlockedPath/grok-bot-setup/main/scripts/bootstrap.sh | bash
+# Prefer cloning and inspecting the repository before running this script.
 set -euo pipefail
 
-REPO_URL="${GROK_BOT_SETUP_REPO:-https://github.com/BlockedPath/grok-bot-setup.git}"
-DEST="${GROK_BOT_SETUP_DIR:-$HOME/grok-bot-setup}"
+REPO_URL="${GROK_BOT_SETUP_REPO:-https://github.com/lazerusrm/botrouter.git}"
+DEST="${GROK_BOT_SETUP_DIR:-$HOME/botrouter}"
 
 # If this file is already inside a checkout, use that.
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then

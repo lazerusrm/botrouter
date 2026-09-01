@@ -9,6 +9,7 @@
 /cliproxy-api/
 /grok-model-bridge/
 node_modules/
+/current/
 
 # Runtime / logs
 **/logs/*

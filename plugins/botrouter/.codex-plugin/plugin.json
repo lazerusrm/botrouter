@@ -1,0 +1,35 @@
+{
+  "name": "botrouter",
+  "version": "0.1.0+codex.20260901152450",
+  "description": "Install, authenticate, diagnose, test, and safely operate the BotRouter harness.",
+  "author": {
+    "name": "lazerusrm"
+  },
+  "homepage": "https://github.com/lazerusrm/botrouter",
+  "repository": "https://github.com/lazerusrm/botrouter",
+  "license": "MIT",
+  "keywords": [
+    "botrouter",
+    "operator",
+    "inference",
+    "browser",
+    "automation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "BotRouter",
+    "shortDescription": "Set up and safely operate the routed bot harness.",
+    "longDescription": "Guides installation, provider-owned login, diagnostics, smoke testing, deployment, and restart-resumable recovery without copying credentials.",
+    "developerName": "lazerusrm",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Set up BotRouter and guide me through required logins.",
+      "Run a BotRouter health check and fix safe local issues.",
+      "Test the harness tools and report only real blockers."
+    ]
+  }
+}

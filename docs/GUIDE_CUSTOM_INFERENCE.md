@@ -1,5 +1,7 @@
 # Guide: Point Grok Bot at xAI (or any other provider)
 
+> This guide documents the base custom-provider adapter and rebuild path. For the current routed harness—per-bot model commands, Codex/Grok/Cursor subscription separation, native tools, completion behavior, and supervisor-owned deployment—use [BOT_HARNESS_OPERATIONS.md](BOT_HARNESS_OPERATIONS.md). Where the documents differ, the operations guide describes the current harness.
+
 **Complete, re-doable runbook.** Use this if you need to rebuild the custom inference path, switch models/providers, or recover after a host upgrade.
 
 | Related file | Purpose |

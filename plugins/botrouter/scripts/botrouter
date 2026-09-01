@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(cd "$SELF_DIR/.." && pwd)"
+DEFAULT_REPO_URL="https://github.com/lazerusrm/botrouter.git"
+STATE_DIR="${BOTROUTER_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/botrouter}"
+STATE_FILE="$STATE_DIR/setup-state"
+
+say() { printf '%s\n' "$*"; }
+fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+runtime_root() {
+  local candidate cwd_root="" marketplace_root=""
+  if have git; then
+    cwd_root="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || true)"
+  fi
+  if have codex; then
+    marketplace_root="$(codex plugin marketplace list 2>/dev/null | awk '$1 == "botrouter" { print $2; exit }')"
+  fi
+  for candidate in \
+    "${GROK_BOT_SETUP_ROOT:-}" \
+    "$PWD" \
+    "$cwd_root" \
+    "$marketplace_root" \
+    "$(cd "$PLUGIN_ROOT/../.." 2>/dev/null && pwd || true)" \
+    "$HOME/grok-bot-setup" \
+    "$HOME/BotRouter" \
+    "$HOME/botrouter" \
+    "/workspace/setup"
+  do
+    [[ -n "$candidate" && -f "$candidate/adapters.sh" && -f "$candidate/xai-prompt-session.cjs" ]] || continue
+    printf '%s\n' "$candidate"
+    return 0
+  done
+  return 1
+}
+
+write_state() {
+  mkdir -p "$STATE_DIR"
+  chmod 700 "$STATE_DIR"
+  printf '%s\n' "$1" >"$STATE_FILE"
+  chmod 600 "$STATE_FILE"
+}
+
+show_state() {
+  [[ -s "$STATE_FILE" ]] && cat "$STATE_FILE" || say "not-started"
+}
+
+credential_state() {
+  local label="$1" file="$2"
+  if [[ -s "$file" ]]; then
+    printf 'AUTH %-10s present (%s)\n' "$label" "$file"
+  else
+    printf 'AUTH %-10s missing\n' "$label"
+  fi
+}
+
+auth_status() {
+  credential_state codex "$HOME/.codex/auth.json"
+  credential_state grok "$HOME/.grok/auth.json"
+  credential_state cursor "$HOME/sand-data/cursor-auth-token"
+  [[ -n "${OPENAI_API_KEY:-}" ]] && say "AUTH openai-api present (environment)" || say "AUTH openai-api missing"
+  [[ -n "${XAI_API_KEY:-}" ]] && say "AUTH xai-api    present (environment)" || say "AUTH xai-api    missing"
+  say "NOTE Credential contents are intentionally not inspected."
+}
+
+doctor() {
+  local root="" failures=0
+  root="$(runtime_root 2>/dev/null || true)"
+  [[ -n "$root" ]] && say "OK   runtime $root" || { say "MISS runtime (run install-runtime)"; failures=$((failures + 1)); }
+  for cmd in bash node git; do
+    have "$cmd" && say "OK   command $cmd" || { say "MISS command $cmd"; failures=$((failures + 1)); }
+  done
+  have ssh && say "OK   command ssh" || { say "MISS command ssh (run install-system-deps as an administrator)"; failures=$((failures + 1)); }
+  have curl && say "OK   command curl" || say "WARN command curl missing (remote health checks unavailable)"
+  if [[ -r /tmp/sand-supervisor/status.json ]]; then
+    say "OK   supervisor status readable"
+  elif [[ -d /home/box/sand-host || -d "$HOME/sand-host" ]]; then
+    say "WARN supervisor status unavailable"
+  else
+    say "INFO no local Sand host detected"
+  fi
+  auth_status
+  if [[ -n "$root" ]]; then
+    bash -n "$root/adapters.sh" && say "OK   adapters syntax" || { say "FAIL adapters syntax"; failures=$((failures + 1)); }
+  fi
+  (( failures == 0 )) || return 1
+}
+
+install_system_deps() {
+  have ssh && { say "System dependency already present: ssh"; return 0; }
+  have apt-get || fail "automatic SSH installation currently supports Debian/Ubuntu; install an OpenSSH client with the system package manager"
+  local elevate=()
+  if [[ "$(id -u)" != 0 ]]; then
+    have sudo || fail "administrator access is required: apt-get install openssh-client"
+    elevate=(sudo -n)
+    "${elevate[@]}" true 2>/dev/null || fail "passwordless administrator access is required: sudo apt-get install openssh-client"
+  fi
+  "${elevate[@]}" apt-get update -qq
+  DEBIAN_FRONTEND=noninteractive "${elevate[@]}" apt-get install -y -qq --no-install-recommends openssh-client
+  have ssh || fail "OpenSSH client installation completed without an ssh executable"
+  ssh -V
+}
+
+install_runtime() {
+  local existing="" dest="${GROK_BOT_SETUP_ROOT:-$HOME/grok-bot-setup}"
+  existing="$(runtime_root 2>/dev/null || true)"
+  if [[ -n "$existing" ]]; then
+    say "Runtime already present: $existing"
+    return 0
+  fi
+  have git || fail "git is required"
+  [[ ! -e "$dest" ]] || fail "destination exists but is not a recognized runtime: $dest"
+  mkdir -p "$(dirname "$dest")"
+  git clone --branch main --depth 1 "${GROK_BOT_SETUP_REPO:-$DEFAULT_REPO_URL}" "$dest"
+  say "Installed runtime source: $dest"
+  say "Next: run doctor, complete the desired provider login, then apply --yes."
+}
+
+login_provider() {
+  case "${1:-}" in
+    codex)
+      have codex || fail "codex CLI is missing; install it with the runtime adapters menu"
+      exec codex login --device-auth
+      ;;
+    grok)
+      have grok || fail "grok CLI is missing; install it with the runtime adapters menu"
+      exec grok login --device-auth
+      ;;
+    claude)
+      have claude || fail "claude CLI is missing; install it with the runtime adapters menu"
+      exec claude login
+      ;;
+    cursor)
+      fail "Cursor subscription login has no portable plugin flow. Authenticate with Cursor locally; do not copy another user's token."
+      ;;
+    *) fail "usage: $0 login codex|grok|claude" ;;
+  esac
+}
+
+configure_provider() {
+  local root provider="${1:-}"
+  [[ -n "$provider" ]] || fail "usage: $0 configure <provider>"
+  root="$(runtime_root)" || fail "runtime missing; run install-runtime"
+  exec "$root/adapters.sh" use "$provider"
+}
+
+run_tests() {
+  local root
+  root="$(runtime_root)" || fail "runtime missing; run install-runtime"
+  (cd "$root" && npm test)
+  [[ ! -f "$root/test-auto-router-session.cjs" ]] || (cd "$root" && node test-auto-router-session.cjs)
+  [[ ! -f "$root/test-codex-auto-review.cjs" ]] || (cd "$root" && node test-codex-auto-review.cjs)
+}
+
+apply_runtime() {
+  local root
+  [[ "${1:-}" == "--yes" ]] || fail "apply changes the host and may restart it; rerun as: $0 apply --yes"
+  root="$(runtime_root)" || fail "runtime missing; run install-runtime"
+  write_state "verify-after-restart"
+  exec "$root/adapters.sh" recover
+}
+
+resume_setup() {
+  local state
+  state="$(show_state)"
+  case "$state" in
+    not-started) say "No interrupted BotRouter setup is recorded." ;;
+    verify-after-restart)
+      doctor
+      write_state "smoke-test-required"
+      say "Recovery is healthy. Run one real task through the target bot, then run: $0 complete --yes"
+      ;;
+    smoke-test-required)
+      say "Run one real task through the target bot, then run: $0 complete --yes"
+      ;;
+    *) fail "unknown setup checkpoint: $state" ;;
+  esac
+}
+
+complete_setup() {
+  [[ "${1:-}" == "--yes" ]] || fail "complete only after a real target-bot smoke test: $0 complete --yes"
+  [[ "$(show_state)" == "smoke-test-required" ]] || fail "no verified recovery is awaiting a smoke test; run resume first"
+  rm -f "$STATE_FILE"
+  say "BotRouter setup complete."
+}
+
+usage() {
+  cat <<EOF
+BotRouter
+
+  doctor                    Read-only environment and auth-presence check
+  auth-status               Show credential presence without reading secrets
+  install-system-deps       Install the OpenSSH client (administrator access)
+  install-runtime           Clone the public runtime when absent
+  login codex|grok|claude   Launch the provider-owned interactive login
+  configure <provider>      Run the adapters CLI's private provider setup
+  test                      Run runtime regression tests
+  apply --yes               Patch/recover and supervisor-restart the host
+  resume                    Verify after restart and continue from checkpoint
+  complete --yes            Clear checkpoint after a real bot smoke test
+  checkpoint                Show resumable setup state
+  root                      Print the discovered runtime root
+EOF
+}
+
+case "${1:-help}" in
+  doctor) doctor ;;
+  auth-status) auth_status ;;
+  install-system-deps) install_system_deps ;;
+  install-runtime) install_runtime ;;
+  login) shift; login_provider "${1:-}" ;;
+  configure) shift; configure_provider "${1:-}" ;;
+  test) run_tests ;;
+  apply) shift; apply_runtime "${1:-}" ;;
+  resume) resume_setup ;;
+  complete) shift; complete_setup "${1:-}" ;;
+  checkpoint) show_state ;;
+  root) runtime_root || fail "runtime not found" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

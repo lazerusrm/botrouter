@@ -1,14 +1,16 @@
-# grok-bot-setup
+# BotRouter
 
-[![CI](https://img.shields.io/github/actions/workflow/status/BlockedPath/grok-bot-setup/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/BlockedPath/grok-bot-setup/actions/workflows/ci.yml)
+BotRouter is the shareable, agent-guided routing and tool harness for Grok Bot. The npm CLI remains `grok-bot-setup` for compatibility. See the [BotRouter plugin and onboarding workflow](docs/SHAREABLE_OPERATOR_PLUGIN.md).
+
+[![CI](https://img.shields.io/github/actions/workflow/status/lazerusrm/botrouter/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/lazerusrm/botrouter/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/grok-bot-setup?style=flat-square&color=cb3837)](https://www.npmjs.com/package/grok-bot-setup)
 [![npm downloads](https://img.shields.io/npm/dm/grok-bot-setup?style=flat-square&color=cb3837)](https://www.npmjs.com/package/grok-bot-setup)
 [![license](https://img.shields.io/npm/l/grok-bot-setup?style=flat-square&color=green)](LICENSE)
 [![node](https://img.shields.io/node/v/grok-bot-setup?style=flat-square)](https://www.npmjs.com/package/grok-bot-setup)
-[![platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS-blue?style=flat-square)](https://github.com/BlockedPath/grok-bot-setup)
-[![cli](https://img.shields.io/badge/cli-adapters-informational?style=flat-square)](https://github.com/BlockedPath/grok-bot-setup)
-[![bash](https://img.shields.io/badge/bash-4%2B-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](https://github.com/BlockedPath/grok-bot-setup)
-[![GitHub](https://img.shields.io/github/stars/BlockedPath/grok-bot-setup?style=flat-square&logo=github)](https://github.com/BlockedPath/grok-bot-setup)
+[![platform](https://img.shields.io/badge/platform-linux%20%7C%20macOS-blue?style=flat-square)](https://github.com/lazerusrm/botrouter)
+[![cli](https://img.shields.io/badge/cli-adapters-informational?style=flat-square)](https://github.com/lazerusrm/botrouter)
+[![bash](https://img.shields.io/badge/bash-4%2B-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](https://github.com/lazerusrm/botrouter)
+[![GitHub](https://img.shields.io/github/stars/lazerusrm/botrouter?style=flat-square&logo=github)](https://github.com/lazerusrm/botrouter)
 
 CLI to point **Grok Bot** at custom model providers — DeepSeek, Claude, Grok, OpenAI, OpenRouter, ChatGPT/Codex, or any OpenAI-compatible URL.
 
@@ -20,7 +22,7 @@ adapters
 **After this VM / Sand box resets** (one line):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BlockedPath/grok-bot-setup/main/scripts/bootstrap.sh | bash
+git clone https://github.com/lazerusrm/botrouter.git && cd botrouter && ./scripts/bootstrap.sh
 ```
 
 That clones/updates the repo, patches `~/sand-host`, installs CLIProxy v7 + Management Center, seeds `xai-inference.env`, and restarts the host. Then `claude login` and, if you use them, `export MODEL_API_KEY=… DEEPSEEK_API_KEY=…` and run `adapters recover` again so keys land in CLIProxy.
@@ -49,7 +51,7 @@ Also available as the `grok-bot-setup` command (same CLI).
 
 ```bash
 # full setup (hook + CLIProxy + PATH launcher) — use this after a wipe
-curl -fsSL https://raw.githubusercontent.com/BlockedPath/grok-bot-setup/main/scripts/bootstrap.sh | bash
+git clone https://github.com/lazerusrm/botrouter.git && cd botrouter && ./scripts/bootstrap.sh
 ```
 
 </details>
@@ -58,8 +60,8 @@ curl -fsSL https://raw.githubusercontent.com/BlockedPath/grok-bot-setup/main/scr
 <summary>git clone</summary>
 
 ```bash
-git clone https://github.com/BlockedPath/grok-bot-setup.git
-cd grok-bot-setup
+git clone https://github.com/lazerusrm/botrouter.git
+cd botrouter
 ./adapters
 ```
 
@@ -211,7 +213,7 @@ adapters restart-host
 A box wipe deletes `~/sand-host` patches, `~/sand-data/xai-inference.env`, and local CLIProxy. GitHub is the source of truth.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/BlockedPath/grok-bot-setup/main/scripts/bootstrap.sh | bash
+git clone https://github.com/lazerusrm/botrouter.git && cd botrouter && ./scripts/bootstrap.sh
 # same as: git clone … && ./adapters recover
 ```
 
@@ -264,15 +266,16 @@ Override the local data dir with `ADAPTERS_DATA=/path`.
 
 ## Docs
 
+- Routed bot/model operations: [docs/BOT_HARNESS_OPERATIONS.md](docs/BOT_HARNESS_OPERATIONS.md)
 - Full runbook: [docs/GUIDE_CUSTOM_INFERENCE.md](docs/GUIDE_CUSTOM_INFERENCE.md)
 - HTML: [docs/GUIDE_CUSTOM_INFERENCE.html](docs/GUIDE_CUSTOM_INFERENCE.html)
 - CLI: `adapters help`
-- Repo: https://github.com/BlockedPath/grok-bot-setup
+- Repo: https://github.com/lazerusrm/botrouter
 - npm: https://www.npmjs.com/package/grok-bot-setup
 
 ## Contributing
 
 - [Contributing guide](CONTRIBUTING.md)
 - [Code of conduct](CODE_OF_CONDUCT.md)
-- Bug / feature forms open automatically when you [file an issue](https://github.com/BlockedPath/grok-bot-setup/issues/new/choose)
+- Bug / feature forms open automatically when you [file an issue](https://github.com/lazerusrm/botrouter/issues/new/choose)
 - PRs use [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md)

@@ -1,7 +1,7 @@
 {
   "name": "grok-bot-setup",
   "version": "1.3.0",
-  "description": "CLI to point Grok Bot at custom model providers (DeepSeek, Claude, Grok, OpenAI, \u2026)",
+  "description": "BotRouter runtime: route Grok Bot across subscription and API model providers with reliable native tools",
   "keywords": [
     "grok",
     "xai",
@@ -10,16 +10,16 @@
     "llm",
     "openai-compatible"
   ],
-  "homepage": "https://github.com/BlockedPath/grok-bot-setup",
+  "homepage": "https://github.com/lazerusrm/botrouter",
   "bugs": {
-    "url": "https://github.com/BlockedPath/grok-bot-setup/issues"
+    "url": "https://github.com/lazerusrm/botrouter/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/BlockedPath/grok-bot-setup.git"
+    "url": "git+https://github.com/lazerusrm/botrouter.git"
   },
   "license": "MIT",
-  "author": "BlockedPath",
+  "author": "lazerusrm",
   "type": "commonjs",
   "bin": {
     "adapters": "adapters.sh",
@@ -35,6 +35,12 @@
     "scripts/bootstrap.sh",
     "examples/cliproxy-openai-compat.yaml",
     "docs/GUIDE_CUSTOM_INFERENCE.md",
+    "docs/SHAREABLE_OPERATOR_PLUGIN.md",
+    "INSTALL_WITH_YOUR_BOT.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "plugins/botrouter",
+    ".agents/plugins/marketplace.json",
     "README.md",
     "LICENSE"
   ],
