@@ -3,6 +3,7 @@
 ## 0.1.2 - 2026-09-01
 
 - Corrected the public CI help smoke test to validate the CLI's actual stable heading.
+- Included every runtime module required by host recovery in the npm package.
 
 ## 0.1.1 - 2026-09-01
 

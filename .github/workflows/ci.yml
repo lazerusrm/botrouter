@@ -65,6 +65,9 @@ jobs:
             console.log('package', p.name + '@' + p.version);
           "
           npm pack --dry-run
+          npm pack --dry-run 2>&1 | grep -q "codex-auto-review.cjs"
+          npm pack --dry-run 2>&1 | grep -q "codex-computer-session.cjs"
+          npm pack --dry-run 2>&1 | grep -q "inject-host.py"
 
       - name: Pack and install smoke test
         run: |
