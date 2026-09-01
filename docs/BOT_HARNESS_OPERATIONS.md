@@ -65,6 +65,19 @@ Credential lanes remain independent:
 
 ## Deployment and verification
 
+The stock automation desktop may launch a 137-pixel Plank dock over the bottom
+of its 1280×800 screen. That window intercepts coordinate clicks even when
+Chrome is visible behind it. Disable it once per box image:
+
+```bash
+plugins/botrouter/scripts/botrouter fix-desktop --yes
+```
+
+The command makes Plank auto-hide immediately with a ten-second reveal delay,
+so ordinary coordinate clicks reach the page while the desktop supervisor keeps
+its expected dock process. It preserves the original wrapper at
+`/usr/local/lib/botrouter/box-plank.original`.
+
 Keep these copies identical after changing the routed session:
 
 ```text
@@ -100,6 +113,7 @@ After activation, verify all of the following:
 | Same final answer repeats | Look for multiple successful `send_message` results in one turn and a missing `terminal Cursor SendToUser` log |
 | Work stops before completion | Check whether the last send was genuinely final, `needs_input`, or a concrete blocker; progress sends must not latch completion |
 | Browser/Computer loops | Inspect the agent transcript and `audit.jsonl` for repeated observations/actions and the computer recovery fuse |
+| Bottom of screen does not click | Run `botrouter fix-desktop --yes`; a Plank dock may be intercepting the bottom 137 pixels |
 | Auto-review contradicts a recent request | Confirm the newest direct instruction is included in trusted context; older routine constraints must not override it |
 | Saved Python helper is “not bound” | Use an allowed absolute `.py` path (and optional absolute interpreter) or `./script.py` from an allowed working directory |
 | Cursor subscription unavailable | Check token existence, ownership, mode `0600`, JWT shape, and expiration without printing the token |

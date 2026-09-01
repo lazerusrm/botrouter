@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-09-01
+
+- Added a reversible box fix that auto-hides the Plank dock intercepting the bottom 137 pixels of Computer clicks without fighting the desktop supervisor.
+
 ## 0.1.2 - 2026-09-01
 
 - Corrected the public CI help smoke test to validate the CLI's actual stable heading.

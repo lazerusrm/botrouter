@@ -31,6 +31,7 @@
     "xai-prompt-session.cjs",
     "xai-inference.env.example",
     "scripts/ensure-xai-inference.sh",
+    "scripts/disable-automation-dock.sh",
     "codex-auto-review.cjs",
     "codex-computer-session.cjs",
     "inject-host.py",
@@ -58,6 +59,6 @@
   "scripts": {
     "adapters": "bash ./adapters.sh",
     "prepack": "test -x adapters.sh",
-    "test": "bash -n adapters.sh && bash -n adapters && bash -n scripts/ensure-xai-inference.sh && bash -n scripts/restore-after-reset.sh && bash -n scripts/bootstrap.sh && bash ./adapters.sh help >/dev/null"
+    "test": "bash -n adapters.sh && bash -n adapters && bash -n scripts/ensure-xai-inference.sh && bash -n scripts/disable-automation-dock.sh && bash -n scripts/restore-after-reset.sh && bash -n scripts/bootstrap.sh && bash ./adapters.sh help >/dev/null"
   }
 }

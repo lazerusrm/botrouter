@@ -104,6 +104,13 @@ install_system_deps() {
   ssh -V
 }
 
+fix_desktop() {
+  local root
+  [[ "${1:-}" == "--yes" ]] || fail "this auto-hides the automation desktop dock; rerun as: $0 fix-desktop --yes"
+  root="$(runtime_root)" || fail "runtime missing; run install-runtime"
+  exec "$root/scripts/disable-automation-dock.sh" --yes
+}
+
 install_runtime() {
   local existing="" dest="${GROK_BOT_SETUP_ROOT:-$HOME/grok-bot-setup}"
   existing="$(runtime_root 2>/dev/null || true)"
@@ -194,6 +201,7 @@ BotRouter
   doctor                    Read-only environment and auth-presence check
   auth-status               Show credential presence without reading secrets
   install-system-deps       Install the OpenSSH client (administrator access)
+  fix-desktop --yes         Auto-hide the dock that intercepts bottom-screen clicks
   install-runtime           Clone the public runtime when absent
   login codex|grok|claude   Launch the provider-owned interactive login
   configure <provider>      Run the adapters CLI's private provider setup
@@ -210,6 +218,7 @@ case "${1:-help}" in
   doctor) doctor ;;
   auth-status) auth_status ;;
   install-system-deps) install_system_deps ;;
+  fix-desktop) shift; fix_desktop "${1:-}" ;;
   install-runtime) install_runtime ;;
   login) shift; login_provider "${1:-}" ;;
   configure) shift; configure_provider "${1:-}" ;;

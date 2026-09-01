@@ -1,6 +1,6 @@
 {
   "name": "botrouter",
-  "version": "0.1.0+codex.20260901152450",
+  "version": "0.1.0+codex.20260901162717",
   "description": "Install, authenticate, diagnose, test, and safely operate the BotRouter harness.",
   "author": {
     "name": "lazerusrm"
