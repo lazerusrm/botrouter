@@ -2982,12 +2982,16 @@ function withFallbackNotice(result, label, modelId, invocationId) {
   return { ...result, fullStream, response };
 }
 
-function providerFailureResult(modelId, invocationId, err, route) {
+function providerFailureResult(modelId, invocationId, err, route, hiddenTurn = false) {
   const detail = /usage[_ -]?limit|limit has been reached/i.test(asString(err && err.message || err))
     ? "Codex usage limit was reached"
     : "Codex became unavailable";
   const visible = `${detail} after native work had already started, so Grok fallback was not replayed to avoid duplicate work. Existing tool results are preserved; ask me to verify or continue only if needed.`;
   const usage = normalizeUsage({});
+  if (hiddenTurn && route && route.sessionKind === "main") {
+    console.error(`[opengrok] suppressed hidden provider failure after native work detail=${detail}`);
+    return completedTurnResult(modelId, invocationId);
+  }
   if (route && route.suppressBadge) {
     const response = { modelId, messages: [{ role: "assistant", content: `WORKER_BLOCKED: ${visible}` }], finishReason: "stop" };
     return {
@@ -4547,7 +4551,7 @@ function createExecutor(session) {
             }
           }
           state.locallyTerminated = true;
-          return providerFailureResult(model, invocationId, result.error, session.route);
+          return providerFailureResult(model, invocationId, result.error, session.route, state.hiddenTurn);
         }
         codexFallbackNoticeActive = false;
         const forbiddenControl = isSubagent ? forbiddenSubagentControlCall(result.emittedToolCalls) : "";

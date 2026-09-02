@@ -1031,6 +1031,38 @@ server.listen(0, "127.0.0.1", async () => {
     assert.strictEqual(seen.length, requestsAfterPostFailure);
     seen.length = 0;
 
+    const hiddenPostActionSession = createXaiPromptSession({
+      requestedModel: { modelId: "gpt-5.6-terra" },
+      route: {
+        modelId: "gpt-5.6-terra",
+        name: "hidden-post-action-test",
+        hopBaseUrl: `http://127.0.0.1:${port}/v1`,
+        provider: "codex",
+        apiKey: "test",
+        skipMaxTokens: true,
+        sessionKind: "main",
+        suppressBadge: true,
+      },
+      createStockSession: () => fakeStockSession([]),
+    });
+    const hiddenPostActionExecutor = hiddenPostActionSession.getExecutor([{
+      role: "user",
+      content: "[SAND_HIDDEN_PROMPT] post-action provider failure",
+    }]);
+    const hiddenActionParts = [];
+    for await (const part of hiddenPostActionExecutor.stream({}, "hidden-post-action", []).fullStream) hiddenActionParts.push(part);
+    const hiddenAction = hiddenActionParts.find((part) => part.type === "tool-call");
+    assert.strictEqual(hiddenAction.toolName, "Shell");
+    hiddenPostActionExecutor.appendMessages([
+      { role: "assistant", content: [{ type: "tool-call", toolCallId: hiddenAction.toolCallId, toolName: "Shell", args: hiddenAction.args }] },
+      { role: "tool", content: [{ type: "tool-result", toolCallId: hiddenAction.toolCallId, toolName: "Shell", result: { success: { stdout: "" } } }] },
+    ]);
+    const hiddenFailureParts = [];
+    for await (const part of hiddenPostActionExecutor.stream({}, "hidden-post-failure", []).fullStream) hiddenFailureParts.push(part);
+    assert.deepStrictEqual(hiddenFailureParts.map((part) => part.type), ["finish"]);
+    assert.ok(!hiddenFailureParts.some((part) => /WORKER_BLOCKED|became unavailable/i.test(JSON.stringify(part))));
+    seen.length = 0;
+
     const session = createXaiPromptSession({
       requestedModel: { modelId: "gpt-5.6-auto" },
       route: {
