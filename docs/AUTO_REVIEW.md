@@ -40,6 +40,45 @@ This is intentionally asymmetric. Stock can remove a Codex false-positive
 block, but a classifier outage cannot turn a blocked action into an automatic
 execution.
 
+## Verified stock implementation
+
+The installed Grok Bot build `cf33483` contains a readable bundled host with
+original module paths, but no host source map or separate TypeScript sources.
+Its pre-patch backup confirms that the stock classifier is one authenticated
+`ClassifySandAutoReview` RPC. The box sends the native risk target, bounded
+conversation context, parent conversation ID, attempt index, and mode. Cursor's
+backend owns the stock prompt and model policy, so the stock model name and
+server implementation cannot be recovered from the box.
+
+The local bundle does expose the surrounding contract:
+
+- Context is capped at four assistant messages, two trusted user messages, two
+  form-answer messages, and 4,000 characters per message. Current-intent
+  Computer call summaries are also included.
+- Hidden messages are excluded unless they carry the trusted-automation marker.
+  Bot memory is not an authorization source.
+- The policy recognizes only five reasons to block: an unauthorized outbound
+  or binding effect, unauthorized data or credential exfiltration, unauthorized
+  destructive data loss, unauthorized host compromise or persistence, or a
+  matching trusted block instruction. Uncertainty and task mismatch alone are
+  instructed to allow.
+- Personal, user, and project Auto Run rules are merged and de-duplicated.
+  Matching block rules override allow rules.
+- Screenshot, move, wait, and scroll Computer actions bypass model review.
+  Click and drag require a declared purpose. Mutating Computer targets are
+  fingerprinted with the exact action, declared purpose, box generation, and
+  display identity; the display identity is checked again before execution.
+- A classifier failure becomes a manual-review rejection. A valid block can
+  become a native approval card; cards are exact-fingerprint, one-shot
+  decisions, and a new user-message epoch retires stale pending cards.
+- Routine writes originating in a visible turn or handoff-resume are stored as
+  user provenance. Other origins are untrusted unless the user later confirms
+  and promotes that exact routine.
+
+These are implementation details, not a stable public API. Re-audit the bundle
+after a Grok Bot host update and keep the injector fail-closed when an expected
+anchor or contract changes.
+
 ## Approvals and batches
 
 Grok Bot still owns approval cards, reviewed-target fingerprints, and
