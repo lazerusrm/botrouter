@@ -71,6 +71,7 @@ class InjectorTests(unittest.TestCase):
         self.assertEqual(text.count("createCodexAutoReviewClassifier"), 2)
         self.assertIn("fallbackToHost: true", text)
         self.assertIn("client.classifySandAutoReview", text)
+        self.assertIn(INJECT.AUTO_REVIEW_BLOCK_ADJUDICATION_MARKER, text)
         self.assertIn(INJECT.AUTO_REVIEW_TIMEOUT_HOOK, text)
         self.assertIn(INJECT.SMART_MODE_TIMEOUT_HOOK, text)
         self.assertIn(INJECT.APPROVAL_EXPIRY_POLICY_HOOK, text)
@@ -151,6 +152,65 @@ class InjectorTests(unittest.TestCase):
 
     def test_upgrades_legacy_main_only_hook_idempotently(self):
         self.assert_current(self.run_injector(host_fixture(INJECT.LEGACY_SESSION_BLOCK)))
+
+    def test_upgrades_codex_block_to_stock_adjudication(self):
+        current = self.run_injector(host_fixture(INJECT.SESSION_NEEDLE))
+        legacy = current.replace(INJECT.AUTO_REVIEW_HOOK, INJECT.AUTO_REVIEW_LEGACY_HOOK, 1)
+        self.assert_current(self.run_injector(legacy))
+
+    def test_stock_adjudicates_codex_blocks(self):
+        script = f'''
+const Module = require("module");
+let codexResult;
+let stockResult;
+let stockCalls = 0;
+const originalRequire = Module.prototype.require;
+Module.prototype.require = function(id) {{
+  if (id === "./codex-auto-review.cjs") return {{ classify: async () => {{
+    if (codexResult instanceof Error) throw codexResult;
+    return codexResult;
+  }} }};
+  return originalRequire.apply(this, arguments);
+}};
+const smartModeClassifierAttemptIndexKey = "attempt";
+const smartModeClassifierModeKey = "mode";
+const SAND_AUTO_REVIEW_CLASSIFIER_SYSTEM_PROMPT = "policy";
+const SmartModeClassifierDecision = {{ ALLOW: "ALLOW", BLOCK: "BLOCK" }};
+class SmartModeClassifierSuccess {{ constructor(value) {{ Object.assign(this, value); }} }}
+class SmartModeClassifierResult {{ constructor(value) {{ Object.assign(this, value); }} }}
+class SmartModeClassifierArgs {{ constructor(value) {{ Object.assign(this, value); }} }}
+class ClassifySandAutoReviewRequest {{ constructor(value) {{ Object.assign(this, value); }} }}
+class SandSmartModeClassifierError extends Error {{}}
+{INJECT.AUTO_REVIEW_HOOK}
+const ctx = {{ get: (key) => key === "attempt" ? 0 : "enforce", signal: undefined }};
+const args = {{ target: {{}}, conversationContext: [], parentConversationId: "test", toJson: () => ({{ target: {{}} }}) }};
+const client = {{ classifySandAutoReview: async () => {{
+  stockCalls++;
+  if (stockResult instanceof Error) throw stockResult;
+  return {{ result: new SmartModeClassifierResult({{ result: stockResult }}) }};
+}} }};
+(async () => {{
+  const run = async (codex, stock) => {{
+    codexResult = codex;
+    stockResult = stock;
+    stockCalls = 0;
+    const result = await createSandBackendSmartModeClassifierExecutor({{}}, client).execute(ctx, args);
+    return {{ decision: result.result.value.decision, stockCalls }};
+  }};
+  const out = [];
+  out.push(await run({{ decision: "ALLOW" }}, {{ case: "success", value: {{ decision: "BLOCK" }} }}));
+  out.push(await run({{ decision: "BLOCK", reason: "review" }}, {{ case: "success", value: {{ decision: "ALLOW" }} }}));
+  out.push(await run({{ decision: "BLOCK", reason: "review" }}, new Error("stock offline")));
+  out.push(await run(new Error("codex offline"), {{ case: "success", value: {{ decision: "BLOCK" }} }}));
+  console.log(JSON.stringify(out));
+}})();
+'''
+        result = subprocess.run(["node", "-e", script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.strip(),
+            '[{"decision":"ALLOW","stockCalls":0},{"decision":"ALLOW","stockCalls":1},{"decision":"BLOCK","stockCalls":1},{"decision":"BLOCK","stockCalls":1}]',
+        )
 
     def test_upgrades_bad_direct_browser_prompt_guard(self):
         current = self.run_injector(host_fixture(INJECT.SESSION_NEEDLE))

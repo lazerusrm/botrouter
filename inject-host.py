@@ -165,7 +165,7 @@ AUTO_REVIEW_NEEDLE = """function createSandBackendSmartModeClassifierExecutor(op
   };
 }"""
 
-AUTO_REVIEW_HOOK = """function createSandBackendSmartModeClassifierExecutor(options2, client = createSandCursorBackendClient(DashboardService, options2)) {
+AUTO_REVIEW_LEGACY_HOOK = """function createSandBackendSmartModeClassifierExecutor(options2, client = createSandCursorBackendClient(DashboardService, options2)) {
   return {
     async execute(ctx, args) {
       const attemptIndex = ctx.get(smartModeClassifierAttemptIndexKey);
@@ -210,6 +210,73 @@ AUTO_REVIEW_HOOK = """function createSandBackendSmartModeClassifierExecutor(opti
             throw new Error("stock classifier returned no result");
           }
           return response.result;
+        } catch (fallbackError) {
+          if (fallbackError instanceof Error && fallbackError.name === "AbortError") throw fallbackError;
+          throw new SandSmartModeClassifierError("Codex and stock Auto-review classifiers failed");
+        }
+      }
+    }
+  };
+}"""
+
+AUTO_REVIEW_BLOCK_ADJUDICATION_MARKER = "stock classifier adjudicating Codex BLOCK"
+AUTO_REVIEW_HOOK = """function createSandBackendSmartModeClassifierExecutor(options2, client = createSandCursorBackendClient(DashboardService, options2)) {
+  return {
+    async execute(ctx, args) {
+      const attemptIndex = ctx.get(smartModeClassifierAttemptIndexKey);
+      const mode = ctx.get(smartModeClassifierModeKey) ?? "enforce";
+      const classifyWithStock = async () => {
+        const response = await client.classifySandAutoReview(
+          new ClassifySandAutoReviewRequest({
+            args: new SmartModeClassifierArgs({
+              target: args.target,
+              conversationContext: args.conversationContext,
+              parentConversationId: args.parentConversationId
+            }),
+            attemptIndex,
+            mode
+          }),
+          { signal: ctx.signal }
+        );
+        if (response.result === void 0) {
+          throw new Error("stock classifier returned no result");
+        }
+        return response.result;
+      };
+      try {
+        const { classify: createCodexAutoReviewClassifier } = require("./codex-auto-review.cjs");
+        const serializedArgs = typeof args.toJson === "function" ? args.toJson({ emitDefaultValues: true }) : JSON.parse(JSON.stringify(args));
+        const classified = await createCodexAutoReviewClassifier({
+          systemPrompt: SAND_AUTO_REVIEW_CLASSIFIER_SYSTEM_PROMPT,
+          args: serializedArgs,
+          attemptIndex,
+          mode,
+          timeoutMs: 12_000,
+          fallbackToHost: true,
+          signal: ctx.signal
+        });
+        if (classified.decision === "BLOCK") {
+          try {
+            console.error("[opengrok:auto-review] stock classifier adjudicating Codex BLOCK");
+            return await classifyWithStock();
+          } catch (stockError) {
+            if (stockError instanceof Error && stockError.name === "AbortError") throw stockError;
+            console.error(`[opengrok:auto-review] stock adjudication failed; preserving Codex BLOCK error=${stockError instanceof Error ? stockError.name : "Error"}`);
+          }
+        }
+        const value = new SmartModeClassifierSuccess({
+          decision: classified.decision === "ALLOW" ? SmartModeClassifierDecision.ALLOW : SmartModeClassifierDecision.BLOCK,
+          ...classified.decision === "BLOCK" ? {
+            blockReason: classified.reason,
+            ...classified.proposedAllowRule ? { proposedAllowRule: classified.proposedAllowRule } : {}
+          } : {}
+        });
+        return new SmartModeClassifierResult({ result: { case: "success", value } });
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") throw error;
+        console.error(`[opengrok:auto-review] Codex classifier failed; using stock classifier error=${error instanceof Error ? error.name : "Error"}`);
+        try {
+          return await classifyWithStock();
         } catch (fallbackError) {
           if (fallbackError instanceof Error && fallbackError.name === "AbortError") throw fallbackError;
           throw new SandSmartModeClassifierError("Codex and stock Auto-review classifiers failed");
@@ -698,8 +765,16 @@ def main() -> int:
             print("ERROR: injected Auto-review call has an unknown shape", file=sys.stderr)
             return 16
 
+    if "createCodexAutoReviewClassifier" in text and AUTO_REVIEW_BLOCK_ADJUDICATION_MARKER not in text:
+        if AUTO_REVIEW_LEGACY_HOOK not in text:
+            print("ERROR: injected Auto-review classifier has an unknown shape", file=sys.stderr)
+            return 19
+        text = patch(text, AUTO_REVIEW_LEGACY_HOOK, AUTO_REVIEW_HOOK)
+        changed = True
+        print("upgraded Codex BLOCK decisions to stock adjudication")
+
     if "createCodexAutoReviewClassifier" in text:
-        print("Codex Luna-max Auto-review hook already present")
+        print("Codex Luna-low Auto-review hook already present")
     elif anchor_span(text, AUTO_REVIEW_NEEDLE) is None:
         print("ERROR: could not find Auto-review classifier needle", file=sys.stderr)
         return 6

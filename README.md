@@ -144,6 +144,7 @@ GitHub workflow above is the recommended installation path for current Grok Bot
 computers.
 
 - [Model, tool, approval, and recovery operations](docs/BOT_HARNESS_OPERATIONS.md)
+- [Reusable Auto-review classifier contract](docs/AUTO_REVIEW.md)
 - [Plugin and distribution design](docs/SHAREABLE_OPERATOR_PLUGIN.md)
 - [Detailed adapter reference](docs/GUIDE_CUSTOM_INFERENCE.md)
 - [Install using your own bot](INSTALL_WITH_YOUR_BOT.md)
