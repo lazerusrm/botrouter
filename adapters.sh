@@ -2218,28 +2218,6 @@ cmd_set_model() {
 }
 
 # ── host restart ────────────────────────────────────────────────────────────
-find_donor_pid() {
-  python3 <<'PY'
-from pathlib import Path
-for p in Path("/proc").iterdir():
-    if not p.name.isdigit():
-        continue
-    try:
-        env = (p / "environ").read_bytes()
-    except Exception:
-        continue
-    if b"SAND_INFERENCE_RENEWAL_CREDENTIAL=" in env and b"SAND_GATEWAY_TOKEN=" in env:
-        # prefer an existing host-main if present
-        try:
-            cmd = (p / "cmdline").read_bytes()
-        except Exception:
-            cmd = b""
-        print(p.name)
-        if b"host-main.cjs" in cmd:
-            break
-PY
-}
-
 ensure_host_inference() {
   local script="$ROOT/scripts/ensure-xai-inference.sh"
   if [[ ! -f "$script" ]]; then
@@ -2252,133 +2230,37 @@ ensure_host_inference() {
 
 cmd_restart_host() {
   ensure_host_inference || warn "host inference patch failed — sand will keep using Cursor"
-  log "restart sand host with full env (donor process)"
-  local donor
-  # Prefer a non-host donor so we can snapshot env, then kill host safely
-  donor="$(
-    python3 <<'PY'
+  [[ -d /tmp/sand-supervisor ]] || die "sand supervisor is unavailable"
+  local command_id
+  command_id="$(python3 <<'PY'
+import json, os, time
 from pathlib import Path
-host_pid = None
-other = None
-for p in Path("/proc").iterdir():
-    if not p.name.isdigit():
-        continue
-    try:
-        env = (p / "environ").read_bytes()
-        cmd = (p / "cmdline").read_bytes()
-    except Exception:
-        continue
-    if b"SAND_INFERENCE_RENEWAL_CREDENTIAL=" not in env or b"SAND_GATEWAY_TOKEN=" not in env:
-        continue
-    if b"host-main.cjs" in cmd:
-        host_pid = p.name
-    else:
-        other = p.name
-        break
-print(other or host_pid or "")
+
+root = Path("/tmp/sand-supervisor")
+command_id = f"botrouter-restart-{int(time.time() * 1000)}"
+tmp = root / f".{command_id}.json"
+tmp.write_text(json.dumps({"id": command_id, "kind": "restart", "issuedAtMs": int(time.time() * 1000)}))
+os.replace(tmp, root / "command.json")
+print(command_id)
 PY
   )"
-  if [[ -z "$donor" ]]; then
-    die "no process with SAND_INFERENCE_RENEWAL_CREDENTIAL — start host via supervisor/UI instead"
-  fi
-  log "donor pid=$donor"
-
-  python3 - "$donor" "$SAND_HOST" "$ENV_FILE" <<'PY'
-import os, signal, subprocess, sys, time
-from pathlib import Path
-
-donor, sand_host, env_file = sys.argv[1], sys.argv[2], sys.argv[3]
-
-# Snapshot donor env FIRST (donor may be host-main itself)
-raw = Path(f"/proc/{donor}/environ").read_bytes()
-env = {}
-for e in raw.split(b"\0"):
-    if not e or b"=" not in e:
-        continue
-    k, v = e.split(b"=", 1)
-    env[k.decode()] = v.decode("utf-8", "replace")
-
-# Clear provider overrides — re-apply from xai-inference.env below
-for k in (
-    "XAI_API_KEY", "GROK_CODE_XAI_API_KEY", "GROK_XAI_API_KEY",
-    "SAND_XAI_BASE_URL", "SAND_XAI_MODEL", "SAND_XAI_THINKING",
-    "SAND_XAI_REASONING_EFFORT", "SAND_XAI_MAX_TOKENS", "SAND_XAI_PROMOTE_REASONING",
-    "SAND_XAI_IDENTITY", "SAND_INFERENCE_PROVIDER", "OPENAI_API_KEY",
-):
-    env.pop(k, None)
-
-env["SAND_PACKAGED"] = "1"
-env["SAND_HOST_IN_BOX"] = "1"
-env["SAND_HOST_LOG_FILE"] = "/tmp/sand-host-manual.log"
-env["SAND_DATA_ROOT"] = os.environ.get(
-    "SAND_DATA_ROOT", env.get("SAND_DATA_ROOT", str(Path.home() / "sand-data"))
-)
-env["SAND_XAI_ENV_FILE"] = env_file
-
-if Path(env_file).is_file():
-    for line in Path(env_file).read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        if line.startswith("export "):
-            line = line[7:]
-        k, _, v = line.partition("=")
-        v = v.strip().strip('"').strip("'")
-        env[k.strip()] = v
-
-# Native accessibility clients and apps must share a session bus.
-if not env.get("DBUS_SESSION_BUS_ADDRESS") and Path("/usr/bin/dbus-daemon").is_file():
-    lines = subprocess.check_output([
-        "/usr/bin/dbus-daemon", "--session", "--fork", "--print-address=1", "--print-pid=1",
-    ], text=True).splitlines()
-    env["DBUS_SESSION_BUS_ADDRESS"] = lines[0]
-env["NO_AT_BRIDGE"] = "0"
-
-# Kill existing host-main.cjs only (after env snapshot)
-for p in Path("/proc").iterdir():
-    if not p.name.isdigit():
-        continue
-    try:
-        c = (p / "cmdline").read_bytes()
-    except Exception:
-        continue
-    if c.startswith(b"/exec-daemon/node") and b"host-main.cjs" in c:
-        os.kill(int(p.name), signal.SIGTERM)
-        print(f"killed host {p.name}", flush=True)
-
-time.sleep(2)
-
-node = "/exec-daemon/node"
-host_main = str(Path(sand_host) / "host-main.cjs")
-if not Path(host_main).is_file():
-    raise SystemExit(f"missing {host_main}")
-
-logf = open("/tmp/sand-host-manual.log", "a")
-logf.write("\n--- adapters.sh restart-host ---\n")
-logf.flush()
-proc = subprocess.Popen(
-    [node, host_main],
-    cwd=sand_host,
-    env=env,
-    stdout=logf,
-    stderr=logf,
-    start_new_session=True,
-)
-print(f"spawned host pid={proc.pid}", flush=True)
-time.sleep(3)
-gw = Path(env["SAND_DATA_ROOT"]) / "gateway.json"
-if gw.is_file():
-    print(gw.read_text(), flush=True)
-else:
-    print("gateway.json not ready yet", flush=True)
+  log "requested supervisor restart id=$command_id"
+  for _ in $(seq 1 45); do
+    if python3 - "$command_id" <<'PY'
+import json, sys
+try:
+    status = json.load(open("/tmp/sand-supervisor/status.json"))
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if status.get("lastCommandId") == sys.argv[1] and status.get("hostRunning") is True else 1)
 PY
-
-  if port_listening 1340; then
-    log "host gateway listening on :1340"
-    warn "If UI says Reconnecting: hard-refresh / reopen Grok Bot (gateway token may have changed)"
-  else
-    warn "port 1340 not up — check /tmp/sand-host-manual.log"
-  fi
+    then
+      log "supervisor restart acknowledged"
+      return 0
+    fi
+    sleep 1
+  done
+  die "supervisor did not acknowledge restart $command_id within 45 seconds"
 }
 
 # ── interactive prompts ─────────────────────────────────────────────────────

@@ -30,12 +30,14 @@ plugins/botrouter/scripts/botrouter cua-doctor
 ```
 
 The install command uses Cua's official stable installer, prints the installed
-version, and runs `cua-driver doctor`. BotRouter's ordinary `doctor` reports
-whether the optional executable is present but does not fail when it is absent.
+version, runs `cua-driver doctor`, and starts its private local daemon.
+BotRouter's ordinary `doctor` reports whether the optional executable is
+present but does not fail when it is absent.
 
 On Debian/Ubuntu X11 boxes, install `at-spi2-core` and `dbus-x11` first. The
-BotRouter host restart creates a shared D-Bus session when its donor process has
-none, allowing Cua and applications launched by the host to use AT-SPI.
+daemon starts in a private D-Bus session, allowing applications launched through
+Cua to use AT-SPI. Re-run `install-cua --yes` after a box reboot if the daemon is
+not managed by a system service.
 
 Linux requires an x86_64 X11 or XWayland desktop and AT-SPI 2. Run `cua-doctor`
 from the same desktop environment the bot controls; a successful binary install
