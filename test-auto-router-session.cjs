@@ -10,6 +10,7 @@ const os = require("os");
 const path = require("path");
 const {
   addCodexHarnessInstructions,
+  addCuaHarnessInstructions,
   badgeSendMessageArgs,
   createXaiPromptSession,
   cursorSubscriptionBadge,
@@ -31,6 +32,32 @@ const {
     { provider: "codex", sessionKind: "main" }
   );
   assert.ok(instructed.some((message) => /native secret store is available/i.test(String(message.content))), JSON.stringify(instructed));
+}
+
+{
+  const messages = [{ role: "user", content: "Use the desktop application." }];
+  const instructed = addCuaHarnessInstructions(
+    messages,
+    [{ name: "Shell", parameters: { type: "object", properties: {} } }],
+    { cuaDriverPath: "/bin/true" }
+  );
+  assert.strictEqual(messages.length, 1, "CUA instruction must not mutate provider history");
+  assert.strictEqual(instructed[0].role, "system");
+  assert.ok(instructed[0].content.includes("Keep APIs and native browser_* DOM first"));
+  assert.strictEqual(addCuaHarnessInstructions(messages, [], { cuaDriverPath: "/bin/true" }), messages);
+}
+
+{
+  const instructed = addCodexHarnessInstructions(
+    [{ role: "user", content: "Use the desktop application." }],
+    [{ type: "function", function: { name: "Shell", parameters: { type: "object", properties: {} } } }],
+    { provider: "codex", sessionKind: "main", cuaDriverPath: "/bin/true" }
+  );
+  const text = instructed.map((message) => String(message.content || "")).join("\n");
+  assert.ok(text.includes("Cua Driver is available at /bin/true"));
+  assert.ok(text.includes("Keep APIs and native browser_* DOM first"));
+  assert.ok(text.includes("one /bin/true call per Shell round"));
+  assert.ok(text.includes("Use native Computer for canvas/pixel-only UI"));
 }
 
 assert.strictEqual(requestsUserInput("I found some strong current shoe deals.", null), false);
@@ -853,6 +880,7 @@ server.listen(0, "127.0.0.1", async () => {
     const cursorCalls = [];
     process.env.OPENGROK_MODEL_OVERRIDE_DIR = cursorRoot;
     process.env.CURSOR_AUTH_FILE = cursorAuthFile;
+    process.env.OPENGROK_CUA_DRIVER = "/bin/true";
     try {
       const cursorExecutor = createXaiPromptSession({
         requestedModel: { modelId: "gpt-5.6-auto" },
@@ -863,7 +891,9 @@ server.listen(0, "127.0.0.1", async () => {
         },
       }).getExecutor([{ role: "user", content: "Find the best current deal." }]);
       const firstCursorParts = [];
-      for await (const part of cursorExecutor.stream({}, "cursor-first", [], {}).fullStream) firstCursorParts.push(part);
+      for await (const part of cursorExecutor.stream({}, "cursor-first", [
+        { name: "Shell", parameters: { type: "object", properties: {} } },
+      ], {}).fullStream) firstCursorParts.push(part);
       const cursorSend = firstCursorParts.find((part) => part.type === "tool-call");
       cursorExecutor.appendMessages([
         { role: "assistant", content: [{ type: "tool-call", toolCallId: cursorSend.toolCallId, toolName: cursorSend.toolName, args: cursorSend.args }] },
@@ -874,9 +904,11 @@ server.listen(0, "127.0.0.1", async () => {
       assert.strictEqual(cursorCalls.length, 1, "successful Cursor final send must not invoke Composer again");
       assert.ok(!secondCursorParts.some((part) => part.type === "tool-call"), "successful Cursor final send must latch completion");
       assert.strictEqual(cursorCalls.requested.modelId, "composer-2.5");
+      assert.ok(cursorCalls[0].some((message) => message.role === "system" && /Cua Driver is available/.test(message.content)));
     } finally {
       delete process.env.OPENGROK_MODEL_OVERRIDE_DIR;
       delete process.env.CURSOR_AUTH_FILE;
+      delete process.env.OPENGROK_CUA_DRIVER;
       fs.rmSync(cursorRoot, { recursive: true, force: true });
     }
     const fallbackCalls = [];

@@ -49,6 +49,41 @@ let lastToolShapeSignature = "";
 let lastSessionShapeSignature = "";
 let codexFallbackNoticeActive = false;
 
+function cuaDriverPath(route) {
+  const candidates = [
+    route && route.cuaDriverPath,
+    process.env.OPENGROK_CUA_DRIVER,
+    "/home/box/.local/bin/cua-driver",
+    "/usr/local/bin/cua-driver",
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string" || !path.isAbsolute(candidate) || !/^[A-Za-z0-9_./-]+$/.test(candidate)) continue;
+    try {
+      if (fs.statSync(candidate).isFile()) {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return candidate;
+      }
+    } catch {
+      /* try next */
+    }
+  }
+  return "";
+}
+
+function cuaHarnessInstruction(driver) {
+  return `Cua Driver is available at ${driver}. Keep APIs and native browser_* DOM first. For a native desktop app, file dialog, browser chrome, or a surface whose DOM is actually unavailable, use one ${driver} call per Shell round: discover the app/window, get fresh window state, act through the newest returned element token or index, then get fresh state and verify the effect. Use native Computer for canvas/pixel-only UI or if Cua Driver cannot reach the surface. Do not install, update, reconfigure, or expose Cua Driver from a task, and do not use its browser tools to duplicate working native browser_* tools.`;
+}
+
+function addCuaHarnessInstructions(messages, tools, route) {
+  const driver = availableTool(tools, ["Shell"]) ? cuaDriverPath(route) : "";
+  if (!driver) return messages;
+  const out = Array.isArray(messages) ? [...messages] : [];
+  let insertAt = 0;
+  while (insertAt < out.length && out[insertAt] && out[insertAt].role === "system") insertAt += 1;
+  out.splice(insertAt, 0, { role: "system", content: `<cua_driver>\n${cuaHarnessInstruction(driver)}\n</cua_driver>` });
+  return out;
+}
+
 function normalizeModelSelection(value) {
   const selection = asString(value).trim().toLowerCase();
   if (selection === "codex") return "auto";
@@ -2561,6 +2596,7 @@ function addCodexHarnessInstructions(messages, openaiTools, route) {
   const hasShell = names.has("shell");
   const hasRead = names.has("read");
   const hasComputer = names.has("computer") || names.has("computeruse");
+  const cuaDriver = hasShell ? cuaDriverPath(route) : "";
   const hasSend = [...names].some(isSendMessageTool);
   const sendTool = openaiTools.find((tool) => isSendMessageTool(tool && tool.function && tool.function.name));
   const sendProperties = sendTool && sendTool.function && sendTool.function.parameters && sendTool.function.parameters.properties;
@@ -2614,6 +2650,9 @@ function addCodexHarnessInstructions(messages, openaiTools, route) {
       : "",
     directBrowser && hasComputer
       ? "Use Computer directly in this main conversation for the desktop, file dialogs, canvas/pixel controls, or DOM-inaccessible UI. Start from a current screenshot, act from visible state, and verify the fresh returned screen. Task and subagent-control tools are intentionally unavailable in direct mode. Do not launch any Task subagent or discover agent-control tools. Keep the requested work in this main conversation because retaining its full memory and transcript is part of correctness. A rejected or unavailable tool is not a safety denial: choose an offered direct tool and continue unless native Auto-review explicitly blocks the action."
+      : "",
+    cuaDriver
+      ? cuaHarnessInstruction(cuaDriver)
       : "",
     hasBoxHelp && !isSubagent
       ? "When current screen evidence shows an authentication checkpoint, call request_box_help once with a short instruction, then resume after hand-back."
@@ -4317,7 +4356,7 @@ function createExecutor(session) {
             return completedTurnResult(model, invocationId, "Native Grok is unavailable in this session.");
           }
           const stockSession = session.createStockSession();
-          state.stockExecutor = stockSession.getExecutor(state.messages);
+          state.stockExecutor = stockSession.getExecutor(addCuaHarnessInstructions(state.messages, tools, session.route));
           console.error(`[opengrok] user model override agent=${state.agentId} model=grok`);
           return { delegated: state.stockExecutor.stream(ctx, invocationId, tools, options) };
         }
@@ -4349,7 +4388,7 @@ function createExecutor(session) {
             cursorSubscriptionBadge(state.turnModelOverride),
             state.agentId
           );
-          const cursorExecutor = stockSession.getExecutor(state.messages);
+          const cursorExecutor = stockSession.getExecutor(addCuaHarnessInstructions(state.messages, tools, session.route));
           console.error(`[opengrok] user Cursor subscription override agent=${state.agentId} selection=${state.turnModelOverride} requestedModel=${cursorSelection.modelId} parameters=${JSON.stringify(cursorSelection.parameters)}`);
           return { delegated: cursorExecutor.stream(ctx, invocationId, tools, options) };
         }
@@ -4532,7 +4571,7 @@ function createExecutor(session) {
                 ? codexFallbackLabel(result.error)
                 : "";
               const stockSession = withModelBadge(session.createStockSession(), visibleFallback ? label || "⚠️G" : "", state.agentId);
-              state.stockExecutor = stockSession.getExecutor(stockFallbackMessages(state.messages));
+              state.stockExecutor = stockSession.getExecutor(addCuaHarnessInstructions(stockFallbackMessages(state.messages), tools, session.route));
               if (label) codexFallbackNoticeActive = true;
               console.error(
                 `[opengrok] Codex failed before native tools; continuing with stock Grok` +
@@ -4866,6 +4905,7 @@ module.exports = {
   pendingNativeApprovalRetry,
   signedApprovalHandoff,
   addCodexHarnessInstructions,
+  addCuaHarnessInstructions,
   transcriptRoutingText,
   newestVisibleUser,
   userTurnRank,

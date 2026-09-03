@@ -35,6 +35,7 @@ BotRouter:
 
 - lets each bot use Codex, native Grok Bot, Grok Build, Cursor, or automatic routing;
 - keeps native browser DOM, Computer, search, shell, files, and connected-app tools available;
+- optionally adds Cua Driver's accessibility-based native desktop control without replacing browser DOM or pixel Computer;
 - silently retries short provider failures instead of filling chat with errors;
 - keeps working until the requested outcome is complete;
 - uses the existing Grok Bot approval and masked-secret interfaces;
@@ -42,6 +43,10 @@ BotRouter:
 
 It does not copy account credentials into this repository. Provider logins stay
 in their own local credential stores on the Grok Bot computer.
+
+For semantic control of native desktop applications and file dialogs, see
+[Cua Driver integration](docs/CUA_DRIVER.md). It is optional and is never used
+instead of a working API or native browser DOM path.
 
 ## Choosing a model
 
@@ -133,6 +138,7 @@ access.
 | `/model` does not show choices | Ask the bot to run the BotRouter doctor and recover the host |
 | The bot cannot click near the bottom of the screen | Run `plugins/botrouter/scripts/botrouter fix-desktop --yes` inside the bot computer |
 | The bot says SSH is missing | Run `plugins/botrouter/scripts/botrouter install-system-deps` with administrator access |
+| Native desktop controls are unreliable | Run `plugins/botrouter/scripts/botrouter install-cua --yes`, then `cua-doctor` |
 | Setup stopped after a restart | Return to the same conversation and say “Resume the BotRouter setup” |
 | A provider asks for authentication | Complete its official login or masked secret card; never paste credentials into ordinary chat |
 | The bot reports a transient provider error | Ask it to continue once; BotRouter normally retries these internally |
@@ -145,6 +151,7 @@ computers.
 
 - [Model, tool, approval, and recovery operations](docs/BOT_HARNESS_OPERATIONS.md)
 - [Reusable Auto-review classifier contract](docs/AUTO_REVIEW.md)
+- [Optional Cua Driver desktop fallback](docs/CUA_DRIVER.md)
 - [Plugin and distribution design](docs/SHAREABLE_OPERATOR_PLUGIN.md)
 - [Detailed adapter reference](docs/GUIDE_CUSTOM_INFERENCE.md)
 - [Install using your own bot](INSTALL_WITH_YOUR_BOT.md)

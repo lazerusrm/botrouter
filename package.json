@@ -40,6 +40,7 @@
     "examples/cliproxy-openai-compat.yaml",
     "docs/GUIDE_CUSTOM_INFERENCE.md",
     "docs/SHAREABLE_OPERATOR_PLUGIN.md",
+    "docs/CUA_DRIVER.md",
     "INSTALL_WITH_YOUR_BOT.md",
     "CHANGELOG.md",
     "SECURITY.md",
@@ -59,6 +60,6 @@
   "scripts": {
     "adapters": "bash ./adapters.sh",
     "prepack": "test -x adapters.sh",
-    "test": "bash -n adapters.sh && bash -n adapters && bash -n scripts/ensure-xai-inference.sh && bash -n scripts/disable-automation-dock.sh && bash -n scripts/restore-after-reset.sh && bash -n scripts/bootstrap.sh && bash ./adapters.sh help >/dev/null"
+    "test": "bash -n adapters.sh && bash -n adapters && bash -n scripts/ensure-xai-inference.sh && bash -n scripts/disable-automation-dock.sh && bash -n scripts/restore-after-reset.sh && bash -n scripts/bootstrap.sh && bash -n plugins/botrouter/scripts/botrouter && bash ./adapters.sh help >/dev/null"
   }
 }

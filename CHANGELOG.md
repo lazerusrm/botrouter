@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added an optional verified Cua Driver install/doctor path and conditional main-thread guidance for accessibility-based native desktop control while preserving API, browser DOM, and pixel Computer precedence.
+
 ## 0.1.4 - 2026-09-01
 
 - Made full-computer recovery reapply the desktop click fix without requiring administrator access and documented the persistent-state boundary.

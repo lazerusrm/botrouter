@@ -11,6 +11,16 @@ say() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
+cua_driver() {
+  if have cua-driver; then
+    command -v cua-driver
+  elif [[ -x "$HOME/.local/bin/cua-driver" ]]; then
+    printf '%s\n' "$HOME/.local/bin/cua-driver"
+  else
+    return 1
+  fi
+}
+
 runtime_root() {
   local candidate cwd_root="" marketplace_root=""
   if have git; then
@@ -67,7 +77,7 @@ auth_status() {
 }
 
 doctor() {
-  local root="" failures=0
+  local root="" cua="" failures=0
   root="$(runtime_root 2>/dev/null || true)"
   [[ -n "$root" ]] && say "OK   runtime $root" || { say "MISS runtime (run install-runtime)"; failures=$((failures + 1)); }
   for cmd in bash node git; do
@@ -75,6 +85,11 @@ doctor() {
   done
   have ssh && say "OK   command ssh" || { say "MISS command ssh (run install-system-deps as an administrator)"; failures=$((failures + 1)); }
   have curl && say "OK   command curl" || say "WARN command curl missing (remote health checks unavailable)"
+  if cua="$(cua_driver 2>/dev/null)"; then
+    say "OK   optional Cua Driver $cua"
+  else
+    say "INFO optional Cua Driver missing (run install-cua --yes for semantic desktop fallback)"
+  fi
   if [[ -r /tmp/sand-supervisor/status.json ]]; then
     say "OK   supervisor status readable"
   elif [[ -d /home/box/sand-host || -d "$HOME/sand-host" ]]; then
@@ -87,6 +102,27 @@ doctor() {
     bash -n "$root/adapters.sh" && say "OK   adapters syntax" || { say "FAIL adapters syntax"; failures=$((failures + 1)); }
   fi
   (( failures == 0 )) || return 1
+}
+
+cua_doctor() {
+  local cua
+  cua="$(cua_driver)" || fail "Cua Driver is not installed; run: $0 install-cua --yes"
+  "$cua" --version
+  exec "$cua" doctor
+}
+
+install_cua() {
+  local cua
+  [[ "${1:-}" == "--yes" ]] || fail "this downloads the stable Cua Driver from cua.ai; rerun as: $0 install-cua --yes"
+  have curl || fail "curl is required"
+  if cua="$(cua_driver 2>/dev/null)"; then
+    say "Cua Driver already present: $cua"
+  else
+    /bin/bash -c "$(curl -fsSL https://cua.ai/driver/install.sh)"
+    cua="$(cua_driver)" || fail "Cua Driver installer completed without an executable"
+  fi
+  "$cua" --version
+  "$cua" doctor
 }
 
 install_system_deps() {
@@ -199,6 +235,8 @@ usage() {
 BotRouter
 
   doctor                    Read-only environment and auth-presence check
+  cua-doctor                Verify the optional semantic desktop driver
+  install-cua --yes         Install stable Cua Driver from cua.ai and verify it
   auth-status               Show credential presence without reading secrets
   install-system-deps       Install the OpenSSH client (administrator access)
   fix-desktop --yes         Auto-hide the dock that intercepts bottom-screen clicks
@@ -216,6 +254,8 @@ EOF
 
 case "${1:-help}" in
   doctor) doctor ;;
+  cua-doctor) cua_doctor ;;
+  install-cua) shift; install_cua "${1:-}" ;;
   auth-status) auth_status ;;
   install-system-deps) install_system_deps ;;
   fix-desktop) shift; fix_desktop "${1:-}" ;;

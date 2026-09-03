@@ -9,12 +9,13 @@ Use the bundled `scripts/botrouter` as the stable entrypoint. Resolve it relativ
 
 ## Operating contract
 
-1. Run `doctor` first. It is read-only, verifies required commands including SSH, and never prints credential contents.
+1. Run `doctor` first. It is read-only, verifies required commands including SSH, reports optional Cua Driver presence, and never prints credential contents.
 2. If the runtime is absent, explain that `install-runtime` clones the public repository, then run it only when installation is within the user's request.
 3. Use `auth-status` to identify missing provider-owned login. Use `login codex`, `login grok`, or `login claude` to launch that provider's normal interactive flow. Never copy an auth file or subscription token between people, account homes, or machines.
 4. For API-key providers, run `configure <provider>` and let the existing adapters CLI prompt privately. Never put a key in command arguments, chat, logs, or committed files.
 5. Run `test` after setup or changes. Use `apply --yes` only when the user asked to deploy/activate and a host restart is acceptable. It writes a durable checkpoint before restart.
 6. After restart, run `resume`, verify one real task through the target bot, then run `complete --yes`.
+7. Install Cua Driver only when the user requests semantic native-desktop control. Run `install-cua --yes`, then `cua-doctor`. Keep APIs and native browser DOM first; use Cua for native applications or file dialogs and native Computer for pixel-only surfaces.
 
 Keep the setup in this main conversation. Do not delegate onboarding to another bot: the main thread owns the user's choices, login handoffs, and completion check.
 
@@ -26,6 +27,8 @@ Routine recoverable errors belong in diagnostics, not chat. Continue automatical
 ../../scripts/botrouter doctor
 ../../scripts/botrouter auth-status
 ../../scripts/botrouter install-system-deps
+../../scripts/botrouter install-cua --yes
+../../scripts/botrouter cua-doctor
 ../../scripts/botrouter install-runtime
 ../../scripts/botrouter login codex|grok|claude
 ../../scripts/botrouter configure <provider>
