@@ -431,7 +431,7 @@ DIRECT_GUI_TASKS_HOOK = """      if (process.env.OPENGROK_DIRECT_BROWSER_MAIN ==
         if (browserUseOffered) subagentConfigs.push(createSandBrowserUseSubagentConfig());
       }"""
 
-DIRECT_MAIN_TASKS_NEEDLE = """    if (subagentConfigs != null && !host.isSystemPromptOverridden) {
+DIRECT_MAIN_TASKS_LEGACY_NEEDLE = """    if (subagentConfigs != null && !host.isSystemPromptOverridden) {
       const generalPurposeIndex = subagentConfigs.findIndex(
         (config3) => getSubagentTypeName(config3.subagent_type) === GENERAL_PURPOSE_SUBAGENT_TYPE
       );
@@ -441,7 +441,22 @@ DIRECT_MAIN_TASKS_NEEDLE = """    if (subagentConfigs != null && !host.isSystemP
         subagentConfigs.push(createSandExecutorSubagentConfig());
       }
     }"""
+DIRECT_MAIN_TASKS_NEEDLE = """    if (subagentConfigs != null && !host.isSystemPromptOverridden) {
+      const generalPurposeIndex = subagentConfigs.findIndex(
+        (config3) => getSubagentTypeName(config3.subagent_type) === GENERAL_PURPOSE_SUBAGENT_TYPE
+      );
+      const executorConfig = createSandExecutorSubagentConfig(conservativeExecutorReuse);
+      if (generalPurposeIndex >= 0) {
+        subagentConfigs.splice(generalPurposeIndex, 1, executorConfig);
+      } else {
+        subagentConfigs.push(executorConfig);
+      }
+    }"""
 DIRECT_MAIN_TASKS_HOOK = DIRECT_MAIN_TASKS_NEEDLE + """
+    if (subagentConfigs != null && !host.isSubagentRunner && process.env.OPENGROK_DIRECT_BROWSER_MAIN !== "0") {
+      subagentConfigs.length = 0;
+    }"""
+DIRECT_MAIN_TASKS_LEGACY_HOOK = DIRECT_MAIN_TASKS_LEGACY_NEEDLE + """
     if (subagentConfigs != null && !host.isSubagentRunner && process.env.OPENGROK_DIRECT_BROWSER_MAIN !== "0") {
       subagentConfigs.length = 0;
     }"""
@@ -903,15 +918,19 @@ def main() -> int:
         changed = True
         print("limited computerUse and browserUse Tasks to rollback mode")
 
-    if DIRECT_MAIN_TASKS_HOOK in text:
+    if DIRECT_MAIN_TASKS_HOOK in text or DIRECT_MAIN_TASKS_LEGACY_HOOK in text:
         print("all hidden Tasks already limited to rollback mode")
-    elif anchor_span(text, DIRECT_MAIN_TASKS_NEEDLE) is None:
-        print("ERROR: could not find main Task registration", file=sys.stderr)
-        return 17
-    else:
+    elif anchor_span(text, DIRECT_MAIN_TASKS_NEEDLE) is not None:
         text = patch(text, DIRECT_MAIN_TASKS_NEEDLE, DIRECT_MAIN_TASKS_HOOK)
         changed = True
         print("limited all hidden Tasks to rollback mode")
+    elif anchor_span(text, DIRECT_MAIN_TASKS_LEGACY_NEEDLE) is not None:
+        text = patch(text, DIRECT_MAIN_TASKS_LEGACY_NEEDLE, DIRECT_MAIN_TASKS_LEGACY_HOOK)
+        changed = True
+        print("limited all hidden Tasks to rollback mode")
+    else:
+        print("ERROR: could not find main Task registration", file=sys.stderr)
+        return 17
 
     task_gate_hooks = len(list(_tolerant_pattern(DIRECT_TASK_TOOLS_GATE_HOOK).finditer(text)))
     task_gate_needles = len(list(_tolerant_pattern(DIRECT_TASK_TOOLS_GATE_NEEDLE).finditer(text)))
@@ -996,7 +1015,7 @@ def main() -> int:
         and DIRECT_COMPUTER_TOOLS_HOOK in text
         and DIRECT_BROWSER_TOOLS_HOOK in text
         and DIRECT_GUI_TASKS_HOOK in text
-        and DIRECT_MAIN_TASKS_HOOK in text
+        and (DIRECT_MAIN_TASKS_HOOK in text or DIRECT_MAIN_TASKS_LEGACY_HOOK in text)
         and text.count(DIRECT_TASK_TOOLS_GATE_HOOK) == 2
         and DIRECT_TASK_TOOLS_GATE_NEEDLE not in text
         and DIRECT_BROWSER_STATIC_HOOK in text
@@ -1022,7 +1041,7 @@ def main() -> int:
     print("directBrowserMainPrompt", text.count(DIRECT_BROWSER_PROMPT_HOOK))
     print("directBrowserStaticTools", text.count(DIRECT_BROWSER_STATIC_HOOK))
     print("guiTasksRollbackOnly", text.count(DIRECT_GUI_TASKS_HOOK))
-    print("allTasksRollbackOnly", text.count(DIRECT_MAIN_TASKS_HOOK))
+    print("allTasksRollbackOnly", text.count(DIRECT_MAIN_TASKS_HOOK) + text.count(DIRECT_MAIN_TASKS_LEGACY_HOOK))
     print("emptyTaskSchemasOmitted", text.count(DIRECT_TASK_TOOLS_GATE_HOOK))
     print("scheduledAutomationParentRunner", text.count(AUTOMATION_MAIN_THREAD_HOOK))
     print("quietStockPolicyPatches", sum(text.count(hook) for _, hook, _ in STOCK_POLICY_PATCHES))
