@@ -39,7 +39,7 @@ does not prove that a different display's accessibility bus is reachable.
 
 ## Agent contract
 
-When Cua is installed, routed Codex models receive a short conditional
+When Cua is installed, routed models receive a short conditional
 instruction to call the local executable through the existing Shell tool. The
 agent must:
 
