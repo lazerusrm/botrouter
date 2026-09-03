@@ -2255,6 +2255,7 @@ except Exception:
 raise SystemExit(0 if status.get("lastCommandId") == sys.argv[1] and status.get("hostRunning") is True else 1)
 PY
     then
+      curl -fsS http://127.0.0.1:1340/health >/dev/null 2>&1 || { sleep 1; continue; }
       log "supervisor restart acknowledged"
       return 0
     fi
