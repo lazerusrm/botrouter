@@ -150,6 +150,17 @@ class InjectorTests(unittest.TestCase):
     def test_injects_stock_bundle_idempotently(self):
         self.assert_current(self.run_injector(host_fixture(INJECT.SESSION_NEEDLE)))
 
+    def test_injects_current_slim_only_bundle(self):
+        stock = host_fixture(INJECT.SESSION_NEEDLE)
+        for needle, _hook, _label in INJECT.STOCK_POLICY_PATCHES[:4]:
+            stock = stock.replace(needle + "\n", "")
+        current = self.run_injector(stock)
+        for needle, hook, _label in INJECT.STOCK_POLICY_PATCHES[4:]:
+            self.assertIn(hook, current)
+            self.assertNotIn(needle, current)
+        for _needle, hook, _label in INJECT.STOCK_POLICY_PATCHES[:4]:
+            self.assertNotIn(hook, current)
+
     def test_upgrades_legacy_main_only_hook_idempotently(self):
         self.assert_current(self.run_injector(host_fixture(INJECT.LEGACY_SESSION_BLOCK)))
 

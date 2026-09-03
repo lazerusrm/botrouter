@@ -675,10 +675,16 @@ def main() -> int:
         text = patch(text, STOCK_REPLY_SECTION_RETITLED_HOOK, STOCK_REPLY_SECTION_HOOK)
         changed = True
         print("restored the stock slim-prompt control heading")
-    for needle, hook, label in STOCK_POLICY_PATCHES:
+    legacy_policy_absent = all(
+        anchor_span(text, needle) is None and anchor_span(text, hook) in (None, (-1, -1))
+        for needle, hook, _label in STOCK_POLICY_PATCHES[:4]
+    )
+    for index, (needle, hook, label) in enumerate(STOCK_POLICY_PATCHES):
         hook_span = anchor_span(text, hook)
         if hook_span is not None and hook_span != (-1, -1):
             print(f"{label} already patched")
+        elif index < 4 and legacy_policy_absent:
+            print(f"{label} not present in this slim-only bundle")
         elif anchor_span(text, needle) is None:
             print(f"ERROR: could not find stock policy for {label}", file=sys.stderr)
             return 19
@@ -996,7 +1002,11 @@ def main() -> int:
         and DIRECT_BROWSER_STATIC_HOOK in text
         and DIRECT_BROWSER_PROMPT_HOOK in text
         and AUTOMATION_MAIN_THREAD_HOOK in text
-        and all(anchor_span(text, hook) not in (None, (-1, -1)) for _, hook, _ in STOCK_POLICY_PATCHES)
+        and (
+            legacy_policy_absent
+            or all(anchor_span(text, hook) not in (None, (-1, -1)) for _, hook, _ in STOCK_POLICY_PATCHES[:4])
+        )
+        and all(anchor_span(text, hook) not in (None, (-1, -1)) for _, hook, _ in STOCK_POLICY_PATCHES[4:])
     )
     print("createRoutedPromptSession", text.count("createRoutedPromptSession"))
     print("createRoutedComputerUseSession", text.count("createRoutedComputerUseSession"))
