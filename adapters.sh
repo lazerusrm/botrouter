@@ -2326,6 +2326,14 @@ if Path(env_file).is_file():
         v = v.strip().strip('"').strip("'")
         env[k.strip()] = v
 
+# Native accessibility clients and apps must share a session bus.
+if not env.get("DBUS_SESSION_BUS_ADDRESS") and Path("/usr/bin/dbus-daemon").is_file():
+    lines = subprocess.check_output([
+        "/usr/bin/dbus-daemon", "--session", "--fork", "--print-address=1", "--print-pid=1",
+    ], text=True).splitlines()
+    env["DBUS_SESSION_BUS_ADDRESS"] = lines[0]
+env["NO_AT_BRIDGE"] = "0"
+
 # Kill existing host-main.cjs only (after env snapshot)
 for p in Path("/proc").iterdir():
     if not p.name.isdigit():
