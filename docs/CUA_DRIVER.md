@@ -30,7 +30,11 @@ plugins/botrouter/scripts/botrouter cua-doctor
 ```
 
 The install command uses Cua's official stable installer, prints the installed
-version, runs `cua-driver doctor`, and starts its private local daemon.
+version, runs `cua-driver doctor`, creates a small text Shell launcher, and
+starts its private local daemon. The launcher lets Grok's native Auto-review
+bind the exact executable definition before it allows a Cua call; invoking the
+downloaded binary directly is rejected because Auto-review cannot inspect a
+binary's contents.
 BotRouter's ordinary `doctor` reports whether the optional executable is
 present but does not fail when it is absent.
 

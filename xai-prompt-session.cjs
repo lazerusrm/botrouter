@@ -53,8 +53,8 @@ function cuaDriverPath(route) {
   const candidates = [
     route && route.cuaDriverPath,
     process.env.OPENGROK_CUA_DRIVER,
-    "/home/box/.local/bin/cua-driver",
-    "/usr/local/bin/cua-driver",
+    "/home/box/.local/bin/cua-driver-shell",
+    "/usr/local/bin/cua-driver-shell",
   ];
   for (const candidate of candidates) {
     if (typeof candidate !== "string" || !path.isAbsolute(candidate) || !/^[A-Za-z0-9_./-]+$/.test(candidate)) continue;

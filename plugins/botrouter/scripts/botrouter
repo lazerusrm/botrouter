@@ -125,6 +125,17 @@ start_cua_driver() {
   fail "Cua Driver daemon did not start; inspect $log"
 }
 
+install_cua_shell_launcher() {
+  local cua="$1" launcher="$HOME/.local/bin/cua-driver-shell" tmp
+  [[ "$cua" == /* && "$cua" =~ ^[A-Za-z0-9_./-]+$ ]] || fail "unsafe Cua Driver path: $cua"
+  mkdir -p "$(dirname "$launcher")"
+  tmp="$launcher.tmp.$$"
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$cua" >"$tmp"
+  chmod 755 "$tmp"
+  mv -f "$tmp" "$launcher"
+  say "Cua Shell launcher installed: $launcher"
+}
+
 install_cua() {
   local cua
   [[ "${1:-}" == "--yes" ]] || fail "this downloads the stable Cua Driver from cua.ai; rerun as: $0 install-cua --yes"
@@ -137,6 +148,7 @@ install_cua() {
   fi
   "$cua" --version
   "$cua" doctor
+  install_cua_shell_launcher "$cua"
   start_cua_driver "$cua"
   "$cua" status
 }
